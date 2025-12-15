@@ -1,0 +1,5 @@
+{
+  "name": "ClearView AI - 智能水印移除",
+  "description": "基于 Google Gemini 模型的智能图片处理工具，可自动检测并移除照片上的文字、Logo 和水印，还原清晰背景。",
+  "requestFramePermissions": []
+}

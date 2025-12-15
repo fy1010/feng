@@ -1,6 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Initialize the Gemini API client
+// SECURITY NOTE: The API key is accessed via process.env.API_KEY.
+// In a production environment, ensure your build tool (like Vite) is configured 
+// to inject this variable, and ensure .env files are not committed to version control.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
@@ -10,25 +13,39 @@ const cleanBase64 = (dataUrl: string): string => {
   return dataUrl.split(',')[1];
 };
 
+export type EditMode = 'general' | 'eraser';
+
 /**
- * Calls Gemini to remove watermarks from the image
+ * Calls Gemini to edit the image based on mode and instructions
  */
-export const removeWatermark = async (
+export const editImage = async (
   imageBase64: string,
   mimeType: string,
+  mode: EditMode,
   customInstruction?: string
 ): Promise<string> => {
   try {
     const cleanData = cleanBase64(imageBase64);
     
-    // Default instruction focuses on watermark removal and background reconstruction
-    const defaultPrompt = "Remove all watermarks, text overlays, logos, and copyright stamps from this image. Reconstruct the background where the watermarks were removed to look natural and seamless. Do not alter the main subject of the photo.";
-    
-    const finalPrompt = customInstruction 
-      ? `${defaultPrompt} Also focus on: ${customInstruction}`
-      : defaultPrompt;
+    let systemPrompt = "";
 
-    // Using gemini-2.5-flash-image for general image editing tasks as per guidelines
+    if (mode === 'eraser') {
+      // Magic Eraser Mode logic
+      systemPrompt = "The user has marked specific areas of this image with RED strokes/scribbles. Your task is to act as a 'Magic Eraser'. Remove the red markings AND the objects or defects underneath them. Inpaint the removed areas to match the surrounding background seamlessly, ensuring high consistency and natural lighting. Do NOT leave any red marks.";
+    } else {
+      // General/Watermark Mode logic
+      const basePrompt = "You are an expert image editor. ";
+      
+      if (!customInstruction || customInstruction.trim() === "") {
+         // Default behavior if no instruction: Remove watermarks
+         systemPrompt = `${basePrompt} Remove all watermarks, text overlays, logos, and copyright stamps from this image. Reconstruct the background where the watermarks were removed to look natural.`;
+      } else {
+         // Custom instruction behavior
+         systemPrompt = `${basePrompt} Follow this instruction strictly: ${customInstruction}. If the instruction implies removing something, fill the background naturally. If it implies style transfer (like filters), apply it while keeping the main subject intact.`;
+      }
+    }
+
+    // Using gemini-2.5-flash-image for image editing tasks
     const model = 'gemini-2.5-flash-image';
 
     const response = await ai.models.generateContent({
@@ -42,7 +59,7 @@ export const removeWatermark = async (
             }
           },
           {
-            text: finalPrompt
+            text: systemPrompt
           }
         ]
       }
